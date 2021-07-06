@@ -32,6 +32,10 @@ if (BUILD_TF_LITE_PARSER)
     set(TfLiteBenchmark-Armnn_sources
         TfLiteBenchmark-Armnn/TfLiteBenchmark-Armnn.cpp)
     TfLiteParserTest(TfLiteBenchmark-Armnn "${TfLiteBenchmark-Armnn_sources}")
+    
+    set(TfLiteDeepLabV3-Armnn_sources
+        TfLiteDeepLabV3-Armnn/TfLiteDeepLabV3-Armnn.cpp)
+    TfLiteParserTest(TfLiteDeepLabV3-Armnn "${TfLiteDeepLabV3-Armnn_sources}")
 
     set(TfLiteMobilenetQuantized-Armnn_sources
         TfLiteMobilenetQuantized-Armnn/TfLiteMobilenetQuantized-Armnn.cpp
