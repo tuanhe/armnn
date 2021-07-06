@@ -17,6 +17,20 @@
 #include <armnn/utility/NumericCast.hpp>
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 
+#if CV
+#include "opencv2/opencv.hpp"
+#else
+//image process
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include <stb/stb_image_resize.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
+#endif
+
 // Application parameters
 std::vector<armnn::BackendId> default_preferred_backends_order = {armnn::Compute::CpuAcc, armnn::Compute::CpuRef};
 std::vector<armnn::BackendId> preferred_backends_order;
@@ -111,6 +125,107 @@ void process_args(int argc, char** argv)
     }
 }
 
+static int image_pre_process(const char* file, void* data)
+{
+    #if CV
+    Mat src = imread(filename);
+
+    Mat image;
+	resize(src, image, Size(513, 513), 0, 0, INTER_AREA);
+	int cnls = image.type();
+	if (cnls == CV_8UC1) {
+		cvtColor(image, image, COLOR_GRAY2RGB);
+	}
+	else if (cnls == CV_8UC3) {
+		cvtColor(image, image, COLOR_BGR2RGB);
+	}
+	else if (cnls == CV_8UC4) {
+		cvtColor(image, image, COLOR_BGRA2RGB);
+	}
+
+    Mat fimage;
+    image.convertTo(fimage, CV_32FC3, 1/128.0, -128.0 / 128.0);
+
+    // Copy image into input tensor
+    memcpy(dst, fimage.data, sizeof(float) * 513 * 513 * 3);
+
+    #else
+    armnn::IgnoreUnused(data);
+    int iw, ih, n;
+
+	// 加载图片获取宽、高、颜色通道信息
+	unsigned char *idata = stbi_load(file, &iw, &ih, &n, 0);
+    printf("%d, %d, %d\n", iw, ih, n);
+    int nW = 513;
+    int nH = 513;
+    auto *odata = new unsigned char[nW * nH * n];
+
+    const int res = stbir_resize_uint8(idata, iw, ih, 0, reinterpret_cast<unsigned char *>(odata), nW, nH, 0, n);
+    if (res == 0)
+    {
+        throw armnn::Exception("The resizing operation failed");
+    }
+
+    std::string outputPath = "./output.jpg";
+    stbi_write_png(outputPath.c_str(), nW, nH, n, odata, 0);
+    
+    size_t size = static_cast<size_t>(nW*nH*n);
+    memcpy(data, odata, size);
+
+    stbi_image_free(idata);
+    stbi_image_free(odata);
+
+    #endif
+    return 0;
+}
+
+static int image_post_process(const char* file, void* data)
+{
+    #if CV
+    Mat srcTest = imread(input_file);
+    int origWidth = srcTest.cols;
+    int origHeight = srcTest.rows;
+    pdata = index_out;
+    uint16_t MODEL_SIZE =513;
+    Mat mask = Mat(MODEL_SIZE, MODEL_SIZE, CV_8UC1, Scalar(0));
+
+    unsigned char* maskData = mask.data;
+    int segmentedPixels = 0;
+    for (int y = 0; y < MODEL_SIZE; ++y) {
+        for (int x = 0; x < MODEL_SIZE; ++x) {
+            int idx = y * MODEL_SIZE + x;
+            uint8_t classId = pdata[idx];
+            if (classId == 0)
+				continue;
+
+            ++segmentedPixels;
+            maskData[idx] = 255;
+        }
+    }
+
+    resize(mask, mask, Size(origWidth, origHeight), 0, 0, INTER_CUBIC);
+    imwrite("debug1.jpg", mask);
+    threshold(mask, mask, 128, 255, THRESH_BINARY);
+    imwrite("debug2.jpg", mask);
+    float segmentedArea = static_cast<float>(segmentedPixels)/263169;
+    ARMNN_LOG(info) << " segmentedArea : " <<  setprecision (5) << segmentedArea;
+    printf(" segmentedArea : %5f\n", static_cast<float>(segmentedPixels)/263169);
+    Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
+    dilate(mask, mask, element);    
+
+    cvtColor(mask, mask, COLOR_GRAY2BGR);
+    Mat bgMask = ~mask;
+    Mat result;
+    GaussianBlur(bgMask, bgMask, Size(), 10);
+    add(srcTest, bgMask, result);
+    
+    imwrite("seg.jpg", result);
+    imwrite("bgMask.jpg", bgMask);
+
+    #endif
+    return 0;
+}
+
 int main(int argc, char* argv[])
 {
     std::vector<double> inferenceTimes;
@@ -198,13 +313,15 @@ int main(int argc, char* argv[])
     // Allocate output tensors
     unsigned int nb_ouputs = armnn::numeric_cast<unsigned int>(outputTensorInfos.size());
     armnn::OutputTensors outputTensors;
-    std::vector<std::vector<float>> out;
+    std::vector<std::vector<int64_t>> out;
     for (unsigned int i = 0; i < nb_ouputs ; i++)
     {
-        std::vector<float> out_data(outputTensorInfos.at(i).GetNumElements());
+        std::vector<int64_t> out_data(outputTensorInfos.at(i).GetNumElements());
         out.push_back(out_data);
         outputTensors.push_back({ outputBindings[i].first, armnn::Tensor(outputBindings[i].second, out[i].data()) });
     }
+    
+    image_pre_process(input_file_str.c_str(), in[0].data());
 
     // Run the inferences
     std::cout << "\ninferences are running: " << std::flush;
@@ -220,14 +337,7 @@ int main(int argc, char* argv[])
         std::cout << "# " << std::flush;
     }
 
-    auto maxInfTime = *std::max_element(inferenceTimes.begin(), inferenceTimes.end());
-    auto minInfTime = *std::min_element(inferenceTimes.begin(), inferenceTimes.end());
-    auto avgInfTime = accumulate(inferenceTimes.begin(), inferenceTimes.end(), 0.0) /
-            armnn::numeric_cast<double>(inferenceTimes.size());
-    std::cout << "\n\ninference time: ";
-    std::cout << "min=" << minInfTime << "us  ";
-    std::cout << "max=" << maxInfTime << "us  ";
-    std::cout << "avg=" << avgInfTime << "us" << std::endl;
+    image_post_process(input_file_str.c_str(), out[0].data());
 
     return 0;
 }

@@ -35,6 +35,10 @@ if (BUILD_TF_LITE_PARSER)
     
     set(TfLiteDeepLabV3-Armnn_sources
         TfLiteDeepLabV3-Armnn/TfLiteDeepLabV3-Armnn.cpp)
+        if(COMPILER_IS_GNU_LIKE)
+            set_source_files_properties(${TfLiteDeepLabV3-Armnn_sources} PROPERTIES COMPILE_FLAGS 
+                                    "-Wno-conversion -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-function")
+        endif()
     TfLiteParserTest(TfLiteDeepLabV3-Armnn "${TfLiteDeepLabV3-Armnn_sources}")
 
     set(TfLiteMobilenetQuantized-Armnn_sources
