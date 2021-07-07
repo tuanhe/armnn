@@ -17,15 +17,20 @@ target_include_directories(inferenceTest PRIVATE ../src/backends)
 target_include_directories(inferenceTest PRIVATE ../third-party/stb)
 
 if (BUILD_TF_LITE_PARSER)
+    set(OpenCV_DIR ${OPENCV_ROOT})
+    find_package(OpenCV REQUIRED)
+
     macro(TfLiteParserTest testName sources)
         add_executable_ex(${testName} ${sources})
         target_include_directories(${testName} PRIVATE ../src/armnnUtils)
         target_include_directories(${testName} PRIVATE ../src/backends)
+        target_include_directories(${testName} PRIVATE ${OpenCV_INCLUDE_DIRS})
 
         target_link_libraries(${testName} inferenceTest)
         target_link_libraries(${testName} armnnTfLiteParser)
         target_link_libraries(${testName} armnn)
         target_link_libraries(${testName} ${CMAKE_THREAD_LIBS_INIT})
+        target_link_libraries(${testName} ${OpenCV_LIBS})
         addDllCopyCommands(${testName})
     endmacro()
 
