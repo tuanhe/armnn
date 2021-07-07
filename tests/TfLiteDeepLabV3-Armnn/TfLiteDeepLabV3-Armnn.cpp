@@ -17,8 +17,13 @@
 #include <armnn/utility/NumericCast.hpp>
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 
+#define CV 1
+
 #if CV
 #include "opencv2/opencv.hpp"
+
+//using namespace cv;
+
 #else
 //image process
 #define STB_IMAGE_IMPLEMENTATION
@@ -108,8 +113,8 @@ void process_args(int argc, char** argv)
             std::cout << "benchmark will execute " << nb_loops << " inference(s)" << std::endl;
             break;
         case 'i':
-            input_file_str = std::stoi(optarg);
-            std::cout << "model will populate the input file: " << input_file_str << std::endl;
+            input_file_str = std::string(optarg);
+            std::cout << "The input file: " << input_file_str << std::endl;
             break;
         case 'h': // -h or --help
         case '?': // Unrecognized option
@@ -127,27 +132,30 @@ void process_args(int argc, char** argv)
 
 static int image_pre_process(const char* file, void* data)
 {
+    int nW = 513;
+    int nH = 513;
+    int nC = 3;
     #if CV
-    Mat src = imread(filename);
+    cv::Mat src = cv::imread(file);
 
-    Mat image;
-	resize(src, image, Size(513, 513), 0, 0, INTER_AREA);
+    cv::Mat image;
+	cv::resize(src, image, cv::Size(nW, nH), 0, 0, cv::INTER_AREA);
 	int cnls = image.type();
 	if (cnls == CV_8UC1) {
-		cvtColor(image, image, COLOR_GRAY2RGB);
+		cv::cvtColor(image, image, cv::COLOR_GRAY2RGB);
 	}
 	else if (cnls == CV_8UC3) {
-		cvtColor(image, image, COLOR_BGR2RGB);
+		cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
 	}
 	else if (cnls == CV_8UC4) {
-		cvtColor(image, image, COLOR_BGRA2RGB);
+		cv::cvtColor(image, image, cv::COLOR_BGRA2RGB);
 	}
 
-    Mat fimage;
+    cv::Mat fimage;
     image.convertTo(fimage, CV_32FC3, 1/128.0, -128.0 / 128.0);
 
     // Copy image into input tensor
-    memcpy(dst, fimage.data, sizeof(float) * 513 * 513 * 3);
+    memcpy(data, fimage.data, sizeof(float) * nW * nW * nC);
 
     #else
     armnn::IgnoreUnused(data);
@@ -156,8 +164,6 @@ static int image_pre_process(const char* file, void* data)
 	// 加载图片获取宽、高、颜色通道信息
 	unsigned char *idata = stbi_load(file, &iw, &ih, &n, 0);
     printf("%d, %d, %d\n", iw, ih, n);
-    int nW = 513;
-    int nH = 513;
     auto *odata = new unsigned char[nW * nH * n];
 
     const int res = stbir_resize_uint8(idata, iw, ih, 0, reinterpret_cast<unsigned char *>(odata), nW, nH, 0, n);
@@ -182,12 +188,12 @@ static int image_pre_process(const char* file, void* data)
 static int image_post_process(const char* file, void* data)
 {
     #if CV
-    Mat srcTest = imread(input_file);
+    cv::Mat srcTest = cv::imread(file);
     int origWidth = srcTest.cols;
     int origHeight = srcTest.rows;
-    pdata = index_out;
+    const int64_t* pdata = reinterpret_cast<int64_t*>(data);
     uint16_t MODEL_SIZE =513;
-    Mat mask = Mat(MODEL_SIZE, MODEL_SIZE, CV_8UC1, Scalar(0));
+    cv::Mat mask = cv::Mat(MODEL_SIZE, MODEL_SIZE, CV_8UC1, cv::Scalar(0));
 
     unsigned char* maskData = mask.data;
     int segmentedPixels = 0;
@@ -203,24 +209,24 @@ static int image_post_process(const char* file, void* data)
         }
     }
 
-    resize(mask, mask, Size(origWidth, origHeight), 0, 0, INTER_CUBIC);
-    imwrite("debug1.jpg", mask);
-    threshold(mask, mask, 128, 255, THRESH_BINARY);
-    imwrite("debug2.jpg", mask);
+    cv::resize(mask, mask, cv::Size(origWidth, origHeight), 0, 0, cv::INTER_CUBIC);
+    cv::imwrite("debug1.jpg", mask);
+    cv::threshold(mask, mask, 128, 255, cv::THRESH_BINARY);
+    cv::imwrite("debug2.jpg", mask);
     float segmentedArea = static_cast<float>(segmentedPixels)/263169;
-    ARMNN_LOG(info) << " segmentedArea : " <<  setprecision (5) << segmentedArea;
+    std::cout << " segmentedArea : " <<  std::setprecision (5) << segmentedArea <<std::endl;
     printf(" segmentedArea : %5f\n", static_cast<float>(segmentedPixels)/263169);
-    Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
-    dilate(mask, mask, element);    
+    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::dilate(mask, mask, element);    
 
-    cvtColor(mask, mask, COLOR_GRAY2BGR);
-    Mat bgMask = ~mask;
-    Mat result;
-    GaussianBlur(bgMask, bgMask, Size(), 10);
-    add(srcTest, bgMask, result);
+    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR);
+    cv::Mat bgMask = ~mask;
+    cv::Mat result;
+    cv::GaussianBlur(bgMask, bgMask, cv::Size(), 10);
+    cv::add(srcTest, bgMask, result);
     
-    imwrite("seg.jpg", result);
-    imwrite("bgMask.jpg", bgMask);
+    cv::imwrite("seg.jpg", result);
+    cv::imwrite("bgMask.jpg", bgMask);
 
     #endif
     return 0;
