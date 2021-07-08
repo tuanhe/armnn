@@ -107,6 +107,13 @@ if (BUILD_TF_LITE_PARSER)
         ImagePreprocessor.cpp)
     TfLiteParserTest(TfLiteMnasNet-Armnn "${TfLiteMnasNet-Armnn_sources}")
 
+    set(TfLiteWav2letter-Armnn_sources
+        TfLiteWav2letter-Armnn/TfLiteWav2letter-Armnn.cpp)
+        if(COMPILER_IS_GNU_LIKE)
+            set_source_files_properties(${TfLiteWav2letter-Armnn_sources} PROPERTIES COMPILE_FLAGS 
+                                    "-Wno-conversion -Wno-sign-conversion -Wno-unused-parameter -Wno-unused-function")
+        endif()
+    TfLiteParserTest(TfLiteWav2letter-Armnn "${TfLiteWav2letter-Armnn_sources}")
 
     set(TfLiteYoloV3Big-Armnn_sources
         TfLiteYoloV3Big-Armnn/NMS.cpp
