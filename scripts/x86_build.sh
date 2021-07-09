@@ -1,7 +1,17 @@
 #!/bin/bash
 
-CURRENT_PATH=$(readlink -f "$(dirname "$0")")
-BASEDIR=$CURRENT_PATH/../..
+SYSTEM=`uname  -s`
+
+if [ $SYSTEM = "Darwin" ] ; then
+    CURRENT_PATH=$(cd $(dirname $0); pwd)
+elif
+    [ $SYSTEM = "Linux" ] ; then
+   	CURRENT_PATH=$(readlink -f "$(dirname "$0")")
+else
+    echo  "Unkown platform"
+fi
+
+BASEDIR=$CURRENT_PATH/../../armnn-dev
 
 echo $CURRENT_PATH
 echo $BASEDIR
@@ -15,6 +25,5 @@ cmake .. \
 	-DARMNNREF=1 \
     -DBUILD_TESTS=1 \
 	-DBUILD_SAMPLE_APP=1 
-
 
 make -j12
