@@ -2,8 +2,18 @@
 # SPDX-License-Identifier: MIT
 # Search for ArmNN built libraries in user-provided path first, then current repository, then system
 
-set(ARMNN_LIB_NAMES "libarmnn.so"
-    "libarmnnTfLiteParser.so")
+MESSAGE(STATUS "operation system is ${CMAKE_SYSTEM}")
+
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(ARMNN_LIB_NAMES "libarmnn.dylib"
+        "libarmnnTfLiteParser.dylib")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(ARMNN_LIB_NAMES "libarmnn.so"
+        "libarmnnTfLiteParser.so")
+ELSE()
+    set(ARMNN_LIB_NAMES "libarmnn.so"
+        "libarmnnTfLiteParser.so")
+ENDIF()
 
 set(ARMNN_LIBS "")
 
