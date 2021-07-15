@@ -187,6 +187,18 @@ static int image_pre_process(const char* file, void* data)
 
 static int image_post_process(const char* file, void* data)
 {
+    uint32_t nW = 513;
+    uint32_t nH = 513;
+	//cv::Mat mask = cv::Mat(nW, nH, CV_8UC1, data);
+    cv::Mat mask = cv::Mat( nW, nH, CV_8UC1, cv::Scalar(0));
+    //cv2::cvtColor(mask, mask, cv2::COLOR_RGB2BGR);
+    cv::imwrite("debug0.jpg", mask);
+    cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
+    cv::imwrite("debug1.jpg", mask);
+    cv::Mat mask2 = cv::Mat( nW, nH, CV_8UC1, cv::Scalar(200));
+    cv::imwrite("debug2.jpg", mask2);
+
+    #if 0
     #if CV
     cv::Mat srcTest = cv::imread(file);
     int origWidth = srcTest.cols;
@@ -228,6 +240,7 @@ static int image_post_process(const char* file, void* data)
     cv::imwrite("seg.jpg", result);
     cv::imwrite("bgMask.jpg", bgMask);
 
+    #endif
     #endif
     return 0;
 }
@@ -381,7 +394,16 @@ int main(int argc, char* argv[])
     std::cout << "\n";
 
     std::vector<uint8_t> argmax(outputTensorInfos.at(0).GetNumElements()/21);
+    std::cout << "argmax buffer size: " << argmax.size() << "\n";
+    std::cout << "output buffer size: " << outputTensorInfos.at(0).GetNumElements() << "\n";
     arg_max(out[0].data(), argmax.data(), outputTensorInfos.at(0).GetNumElements());
+    for(uint32_t i = 0; i < argmax.size(); ++i)
+    {
+        if(i%50==0)
+            printf("\n");
+        printf(" %d ", argmax[i]);
+    }
+    
     image_post_process(input_file_str.c_str(), argmax.data());
 
     return 0;
