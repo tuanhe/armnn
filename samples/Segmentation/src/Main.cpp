@@ -232,6 +232,39 @@ static int image_post_process(const char* file, void* data)
     return 0;
 }
 
+static int arg_max(void* mask_data, uint8_t* index, uint32_t input_size)
+{
+    uint32_t witdh_out = 513;
+    uint32_t height_out = 513;
+    uint32_t classes = 21;
+    float* inputData = reinterpret_cast<float*>(mask_data);
+
+    if (input_size != witdh_out * height_out * classes){
+        std::cout << "Size is not match \n";
+        return -1;
+    }
+    
+    for (uint32_t i = 0; i < height_out; ++i)
+    {
+        for (uint32_t j = 0; j < witdh_out; ++j)
+        {
+            float max = 0.f;
+            uint8_t max_index = 0;
+            for (uint8_t k = 0; k < classes; ++k)
+            {
+                uint32_t index  = i * height_out + j * witdh_out + k;
+                if (inputData[index] > max)
+                {
+                    max = inputData[index];
+                    max_index = k;
+                }
+            }
+            *index++ = max_index;
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char* argv[])
 {
     std::vector<double> inferenceTimes;
@@ -291,8 +324,8 @@ int main(int argc, char* argv[])
         armnnTfLiteParser::BindingPointInfo inputBinding = armnnparser->GetNetworkInputBindingInfo(
                                                                            subgraphId,
                                                                            inputTensorNames[i]);
-        std::cout << "inputTensorNames[" << i << "] = " << inputBinding.first << std::endl;
         armnn::TensorInfo inputTensorInfo = runtime->GetInputTensorInfo(networkId, inputBinding.first);
+        std::cout << "inputTensorsize[" << i << "] = " << inputTensorInfo.GetNumBytes() << std::endl;
         inputBindings.push_back(inputBinding);
         inputTensorInfos.push_back(inputTensorInfo);
     }
@@ -308,6 +341,7 @@ int main(int argc, char* argv[])
                                                                              subgraphId,
                                                                              outputTensorNames[i]);
         armnn::TensorInfo outputTensorInfo = runtime->GetOutputTensorInfo(networkId, outputBinding.first);
+        std::cout << "outputTensorsize[" << i << "] = " << outputTensorInfo.GetNumBytes() << std::endl;
         outputBindings.push_back(outputBinding);
         outputTensorInfos.push_back(outputTensorInfo);
     }
@@ -326,10 +360,10 @@ int main(int argc, char* argv[])
     // Allocate output tensors
     unsigned int nb_ouputs = armnn::numeric_cast<unsigned int>(outputTensorInfos.size());
     armnn::OutputTensors outputTensors;
-    std::vector<std::vector<int64_t>> out;
+    std::vector<std::vector<float>> out;
     for (unsigned int i = 0; i < nb_ouputs ; i++)
     {
-        std::vector<int64_t> out_data(outputTensorInfos.at(i).GetNumElements());
+        std::vector<float> out_data(outputTensorInfos.at(i).GetNumElements());
         out.push_back(out_data);
         outputTensors.push_back({ outputBindings[i].first, armnn::Tensor(outputBindings[i].second, out[i].data()) });
     }
@@ -340,17 +374,15 @@ int main(int argc, char* argv[])
     std::cout << "\ninferences are running: " << std::flush;
     for (int i = 0 ; i < nb_loops ; i++)
     {
-        struct timeval start_time, stop_time;
-        gettimeofday(&start_time, nullptr);
-
         runtime->EnqueueWorkload(networkId, inputTensors, outputTensors);
 
-        gettimeofday(&stop_time, nullptr);
-        inferenceTimes.push_back((get_us(stop_time) - get_us(start_time)));
         std::cout << "# " << std::flush;
     }
+    std::cout << "\n";
 
-    image_post_process(input_file_str.c_str(), out[0].data());
+    std::vector<uint8_t> argmax(outputTensorInfos.at(0).GetNumElements()/21);
+    arg_max(out[0].data(), argmax.data(), outputTensorInfos.at(0).GetNumElements());
+    image_post_process(input_file_str.c_str(), argmax.data());
 
     return 0;
 }
