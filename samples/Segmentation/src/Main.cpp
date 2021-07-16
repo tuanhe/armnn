@@ -44,6 +44,10 @@ std::string preferred_backend_str;
 std::string input_file_str;
 int nb_loops = 1;
 
+uint32_t nW = 513;
+uint32_t nH = 513;
+uint32_t nClasses = 21;
+
 double get_us(struct timeval t)
 {
     return (armnn::numeric_cast<double>(t.tv_sec) *
@@ -132,8 +136,6 @@ void process_args(int argc, char** argv)
 
 static int image_pre_process(const char* file, void* data)
 {
-    int nW = 513;
-    int nH = 513;
     int nC = 3;
     #if CV
     cv::Mat src = cv::imread(file);
@@ -187,16 +189,10 @@ static int image_pre_process(const char* file, void* data)
 
 static int image_post_process(const char* file, void* data)
 {
-    uint32_t nW = 513;
-    uint32_t nH = 513;
-	//cv::Mat mask = cv::Mat(nW, nH, CV_8UC1, data);
-    cv::Mat mask = cv::Mat( nW, nH, CV_8UC1, cv::Scalar(0));
-    //cv2::cvtColor(mask, mask, cv2::COLOR_RGB2BGR);
+	cv::Mat mask = cv::Mat(nW, nH, CV_8UC1, data);
     cv::imwrite("debug0.jpg", mask);
     cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
     cv::imwrite("debug1.jpg", mask);
-    cv::Mat mask2 = cv::Mat( nW, nH, CV_8UC1, cv::Scalar(200));
-    cv::imwrite("debug2.jpg", mask2);
 
     #if 0
     #if CV
@@ -245,36 +241,45 @@ static int image_post_process(const char* file, void* data)
     return 0;
 }
 
-static int arg_max(void* mask_data, uint8_t* index, uint32_t input_size)
+static int armnn_argmax(float* in, uint8_t* out, uint32_t h, uint32_t w, uint32_t c)
 {
-    uint32_t witdh_out = 513;
-    uint32_t height_out = 513;
-    uint32_t classes = 21;
-    float* inputData = reinterpret_cast<float*>(mask_data);
+    const unsigned int outerElements = h*w;
+    const unsigned int innerElements = 1;
+    const unsigned int axisSize = c;
 
-    if (input_size != witdh_out * height_out * classes){
-        std::cout << "Size is not match \n";
+    for (unsigned int outer = 0; outer < outerElements; ++outer) {
+        for (unsigned int inner = 0; inner < innerElements; ++inner) {
+            auto tmpValue = in[outer * axisSize * innerElements + inner];
+            unsigned int tmpIndex = 0;
+            for (unsigned int i = 1; i < axisSize; ++i) {
+                float value = in[(outer * axisSize * innerElements) + (i * innerElements) + inner];
+                if (value > tmpValue) {
+                    tmpValue = value;
+                    tmpIndex = i;
+                }
+            }
+            out[outer * innerElements + inner] = tmpIndex;
+        }
+    }
+    return 0;
+}
+
+static int write2buffer(std::string backendDev, void* data, uint32_t size)
+{
+    std::string out_name = backendDev + ".bin";
+    
+    out_name = std::to_string(size) + out_name;
+    const char* out_file = out_name.data();
+    FILE* fp = fopen(out_file, "wb");
+    if (fp == nullptr)
+    {
+        std::cout << "open output file fail\n";
         return -1;
     }
     
-    for (uint32_t i = 0; i < height_out; ++i)
-    {
-        for (uint32_t j = 0; j < witdh_out; ++j)
-        {
-            float max = 0.f;
-            uint8_t max_index = 0;
-            for (uint8_t k = 0; k < classes; ++k)
-            {
-                uint32_t index  = i * height_out + j * witdh_out + k;
-                if (inputData[index] > max)
-                {
-                    max = inputData[index];
-                    max_index = k;
-                }
-            }
-            *index++ = max_index;
-        }
-    }
+    fwrite(data, 1, size, fp);
+    fflush(fp);
+    fclose(fp);
     return 0;
 }
 
@@ -396,12 +401,16 @@ int main(int argc, char* argv[])
     std::vector<uint8_t> argmax(outputTensorInfos.at(0).GetNumElements()/21);
     std::cout << "argmax buffer size: " << argmax.size() << "\n";
     std::cout << "output buffer size: " << outputTensorInfos.at(0).GetNumElements() << "\n";
-    arg_max(out[0].data(), argmax.data(), outputTensorInfos.at(0).GetNumElements());
+
+    armnn_argmax(out[0].data(), argmax.data(), nH, nW, nClasses);
+    
+    write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
+    write2buffer("ArgMAx", argmax.data(), argmax.size());
+
     for(uint32_t i = 0; i < argmax.size(); ++i)
     {
-        if(i%50==0)
-            printf("\n");
-        printf(" %d ", argmax[i]);
+        if(argmax[i] > 0x05)
+            argmax[i] = 200;
     }
     
     image_post_process(input_file_str.c_str(), argmax.data());
