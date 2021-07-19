@@ -193,51 +193,27 @@ static int image_post_process(const char* file, void* data)
     cv::imwrite("debug0.jpg", mask);
     cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
     cv::imwrite("debug1.jpg", mask);
-
-    #if 0
-    #if CV
+    
     cv::Mat srcTest = cv::imread(file);
     int origWidth = srcTest.cols;
     int origHeight = srcTest.rows;
-    const int64_t* pdata = reinterpret_cast<int64_t*>(data);
-    uint16_t MODEL_SIZE =513;
-    cv::Mat mask = cv::Mat(MODEL_SIZE, MODEL_SIZE, CV_8UC1, cv::Scalar(0));
-
-    unsigned char* maskData = mask.data;
-    int segmentedPixels = 0;
-    for (int y = 0; y < MODEL_SIZE; ++y) {
-        for (int x = 0; x < MODEL_SIZE; ++x) {
-            int idx = y * MODEL_SIZE + x;
-            uint8_t classId = pdata[idx];
-            if (classId == 0)
-				continue;
-
-            ++segmentedPixels;
-            maskData[idx] = 255;
-        }
-    }
-
+    std::cout << "origWidth" << origWidth << "\n";
+    std::cout << "origHeight" << origHeight << "\n";
     cv::resize(mask, mask, cv::Size(origWidth, origHeight), 0, 0, cv::INTER_CUBIC);
-    cv::imwrite("debug1.jpg", mask);
-    cv::threshold(mask, mask, 128, 255, cv::THRESH_BINARY);
     cv::imwrite("debug2.jpg", mask);
-    float segmentedArea = static_cast<float>(segmentedPixels)/263169;
-    std::cout << " segmentedArea : " <<  std::setprecision (5) << segmentedArea <<std::endl;
-    printf(" segmentedArea : %5f\n", static_cast<float>(segmentedPixels)/263169);
-    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::dilate(mask, mask, element);    
-
-    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR);
+    cv::threshold(mask, mask, 128, 255, cv::THRESH_BINARY);
+    cv::imwrite("debug3.jpg", mask);
+    
+    //seems no useful
+    //cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    //cv::dilate(mask, mask, element);    
     cv::Mat bgMask = ~mask;
     cv::Mat result;
     cv::GaussianBlur(bgMask, bgMask, cv::Size(), 10);
     cv::add(srcTest, bgMask, result);
     
     cv::imwrite("seg.jpg", result);
-    cv::imwrite("bgMask.jpg", bgMask);
 
-    #endif
-    #endif
     return 0;
 }
 
@@ -407,11 +383,15 @@ int main(int argc, char* argv[])
     write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
     write2buffer("ArgMAx", argmax.data(), argmax.size());
 
+    uint32_t segmentedPixels = 0;
     for(uint32_t i = 0; i < argmax.size(); ++i)
     {
-        if(argmax[i] > 0x05)
+        if(argmax[i] > 0x05){
             argmax[i] = 200;
+            segmentedPixels++;
+        }
     }
+    float segmentedArea = static_cast<float>(segmentedPixels)/(nW*nH);
     
     image_post_process(input_file_str.c_str(), argmax.data());
 
