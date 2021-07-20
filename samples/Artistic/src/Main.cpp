@@ -46,7 +46,7 @@ int nb_loops = 1;
 
 uint32_t nW = 256;
 uint32_t nH = 256;
-uint32_t nClasses = 3;
+uint32_t nC = 3;
 
 double get_us(struct timeval t)
 {
@@ -189,78 +189,31 @@ static int image_pre_process(const char* file, void* data)
 
 static int image_post_process(const char* file, void* data)
 {
-	cv::Mat mask = cv::Mat(nW, nH, CV_8UC1, data);
-    cv::imwrite("debug0.jpg", mask);
-    cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
-    cv::imwrite("debug1.jpg", mask);
+    float* ptr = (float*)data;
+    std::vector<uint8_t> imageData(nH * nW * nC);
+    for(int i = 0; i < nH * nW * nC; ++i)
+    {
+        ptr[i] = (ptr[i]+1)*127.5;
+        ptr[i] = (ptr[i] > 255) ? 255 : ptr[i];
+        ptr[i] = (ptr[i] < 0) ? 0 : ptr[i];
+        imageData[i] = static_cast<uint8_t>(ptr[i]);
+    }
+	
+    cv::Mat image = cv::Mat(nW, nH, CV_8UC3, imageData.data());
+    cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
 
-    #if 0
-    #if CV
+    cv::imwrite("debug0.jpg", image);
+
+    
     cv::Mat srcTest = cv::imread(file);
     int origWidth = srcTest.cols;
     int origHeight = srcTest.rows;
-    const int64_t* pdata = reinterpret_cast<int64_t*>(data);
-    uint16_t MODEL_SIZE =513;
-    cv::Mat mask = cv::Mat(MODEL_SIZE, MODEL_SIZE, CV_8UC1, cv::Scalar(0));
-
-    unsigned char* maskData = mask.data;
-    int segmentedPixels = 0;
-    for (int y = 0; y < MODEL_SIZE; ++y) {
-        for (int x = 0; x < MODEL_SIZE; ++x) {
-            int idx = y * MODEL_SIZE + x;
-            uint8_t classId = pdata[idx];
-            if (classId == 0)
-				continue;
-
-            ++segmentedPixels;
-            maskData[idx] = 255;
-        }
-    }
-
-    cv::resize(mask, mask, cv::Size(origWidth, origHeight), 0, 0, cv::INTER_CUBIC);
-    cv::imwrite("debug1.jpg", mask);
-    cv::threshold(mask, mask, 128, 255, cv::THRESH_BINARY);
-    cv::imwrite("debug2.jpg", mask);
-    float segmentedArea = static_cast<float>(segmentedPixels)/263169;
-    std::cout << " segmentedArea : " <<  std::setprecision (5) << segmentedArea <<std::endl;
-    printf(" segmentedArea : %5f\n", static_cast<float>(segmentedPixels)/263169);
-    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::dilate(mask, mask, element);    
-
-    cv::cvtColor(mask, mask, cv::COLOR_GRAY2BGR);
-    cv::Mat bgMask = ~mask;
-    cv::Mat result;
-    cv::GaussianBlur(bgMask, bgMask, cv::Size(), 10);
-    cv::add(srcTest, bgMask, result);
     
-    cv::imwrite("seg.jpg", result);
-    cv::imwrite("bgMask.jpg", bgMask);
+    cv::resize(image, image, cv::Size(origWidth, origHeight), 0, 0, cv::INTER_CUBIC);
+    cv::imwrite("debug1.jpg", image);
+    
+    std::cout << "test done" << std::endl;
 
-    #endif
-    #endif
-    return 0;
-}
-
-static int armnn_argmax(float* in, uint8_t* out, uint32_t h, uint32_t w, uint32_t c)
-{
-    const unsigned int outerElements = h*w;
-    const unsigned int innerElements = 1;
-    const unsigned int axisSize = c;
-
-    for (unsigned int outer = 0; outer < outerElements; ++outer) {
-        for (unsigned int inner = 0; inner < innerElements; ++inner) {
-            auto tmpValue = in[outer * axisSize * innerElements + inner];
-            unsigned int tmpIndex = 0;
-            for (unsigned int i = 1; i < axisSize; ++i) {
-                float value = in[(outer * axisSize * innerElements) + (i * innerElements) + inner];
-                if (value > tmpValue) {
-                    tmpValue = value;
-                    tmpIndex = i;
-                }
-            }
-            out[outer * innerElements + inner] = tmpIndex;
-        }
-    }
     return 0;
 }
 
@@ -383,6 +336,13 @@ int main(int argc, char* argv[])
     {
         std::vector<float> out_data(outputTensorInfos.at(i).GetNumElements());
         out.push_back(out_data);
+        auto shape = outputTensorInfos.at(i).GetShape();
+        for(uint32_t j = 0; j < shape.GetNumDimensions(); ++j)
+        {
+            std::cout << " " << shape[j];
+        }
+        std::cout << std::endl;
+        std::cout << "shape size : " << outputTensorInfos.at(i).GetShape();
         outputTensors.push_back({ outputBindings[i].first, armnn::Tensor(outputBindings[i].second, out[i].data()) });
     }
     
@@ -401,7 +361,7 @@ int main(int argc, char* argv[])
     
     write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
 
-    //image_post_process(input_file_str.c_str(), argmax.data());
+    image_post_process(input_file_str.c_str(), out[0].data());
 
     return 0;
 }
