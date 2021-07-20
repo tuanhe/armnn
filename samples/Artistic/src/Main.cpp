@@ -44,9 +44,9 @@ std::string preferred_backend_str;
 std::string input_file_str;
 int nb_loops = 1;
 
-uint32_t nW = 513;
-uint32_t nH = 513;
-uint32_t nClasses = 21;
+uint32_t nW = 256;
+uint32_t nH = 256;
+uint32_t nClasses = 3;
 
 double get_us(struct timeval t)
 {
@@ -154,7 +154,7 @@ static int image_pre_process(const char* file, void* data)
 	}
 
     cv::Mat fimage;
-    image.convertTo(fimage, CV_32FC3, 1/128.0, -128.0 / 128.0);
+    image.convertTo(fimage, CV_32FC3, 1/127.5, -128.0 / 128.0);
 
     // Copy image into input tensor
     memcpy(data, fimage.data, sizeof(float) * nW * nW * nC);
@@ -398,22 +398,10 @@ int main(int argc, char* argv[])
     }
     std::cout << "\n";
 
-    std::vector<uint8_t> argmax(outputTensorInfos.at(0).GetNumElements()/21);
-    std::cout << "argmax buffer size: " << argmax.size() << "\n";
-    std::cout << "output buffer size: " << outputTensorInfos.at(0).GetNumElements() << "\n";
-
-    armnn_argmax(out[0].data(), argmax.data(), nH, nW, nClasses);
     
     write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
-    write2buffer("ArgMAx", argmax.data(), argmax.size());
 
-    for(uint32_t i = 0; i < argmax.size(); ++i)
-    {
-        if(argmax[i] > 0x05)
-            argmax[i] = 200;
-    }
-    
-    image_post_process(input_file_str.c_str(), argmax.data());
+    //image_post_process(input_file_str.c_str(), argmax.data());
 
     return 0;
 }
