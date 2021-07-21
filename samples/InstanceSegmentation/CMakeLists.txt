@@ -59,7 +59,7 @@ file(GLOB SOURCES "src/*.cpp")
 #file(GLOB COMMON_SOURCES "../common/src/**/*.cpp")
 list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp)
 file(GLOB TEST_SOURCES "test/*.cpp")
-file(GLOB APP_MAIN "src/yolact.cpp")
+file(GLOB APP_MAIN "src/Yolact.cpp")
 
 if(BUILD_UNIT_TESTS)
     include(cmake/unit_tests.cmake)
