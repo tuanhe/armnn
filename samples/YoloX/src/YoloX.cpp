@@ -115,16 +115,17 @@ void process_args(int argc, char** argv)
         }
     }
 
-    if (model_file_str.empty())
+    if (model_file_str.empty() || input_file_str.empty())
     {
         print_help(argv);
     }
 }
 
-static int image_pre_process(const char* file, void* data)
+static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, void* data)
 {
     int nC = 3;
     #if CV
+    std::cout << "Shape : " << tensorInfo.GetShape() << std::endl;
     cv::Mat src = cv::imread(file);
 
     cv::Mat image;
@@ -258,9 +259,9 @@ int main(int argc, char* argv[])
     armnn::IRuntime::CreationOptions options;
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
 
+
     // Create Parser
-    //armnnTfLiteParser::ITfLiteParserPtr armnnparser(armnnTfLiteParser::ITfLiteParser::Create());
-    armnnOnnxParser::IOnnxParserPtr armnnparser(armnnOnnxParser::IOnnxParser::Create());
+    armnnTfLiteParser::ITfLiteParserPtr armnnparser(armnnTfLiteParser::ITfLiteParser::Create());
 
     // Create a network
     armnn::INetworkPtr network = armnnparser->CreateNetworkFromBinaryFile(model_file_str.c_str());
@@ -288,18 +289,18 @@ int main(int argc, char* argv[])
     runtime->LoadNetwork(networkId, std::move(optimizedNet));
 
     // Check the number of subgraph
-    //if (armnnparser->GetSubgraphCount() != 1)
-    //{
-    //    std::cout << "Model with more than 1 subgraph is not supported by this benchmark application.\n";
-    //    exit(0);
-    //}
+    if (armnnparser->GetSubgraphCount() != 1)
+    {
+        std::cout << "Model with more than 1 subgraph is not supported by this benchmark application.\n";
+        exit(0);
+    }
     size_t subgraphId = 0;
 
     // Set up the input network
     std::cout << "\nModel information:" << std::endl;
-    std::vector<armnnOnnxParser::BindingPointInfo> inputBindings;
-    std::vector<armnn::TensorInfo>                 inputTensorInfos;
-    std::vector<std::string> inputTensorNames = armnnparser->getInputTensorNames();
+    std::vector<armnnTfLiteParser::BindingPointInfo> inputBindings;
+    std::vector<armnn::TensorInfo>                   inputTensorInfos;
+    std::vector<std::string> inputTensorNames = armnnparser->GetSubgraphInputTensorNames(subgraphId);
     for (unsigned int i = 0; i < inputTensorNames.size() ; i++)
     {
         std::cout << "inputTensorNames[" << i << "] = " << inputTensorNames[i] << std::endl;
@@ -313,9 +314,9 @@ int main(int argc, char* argv[])
     }
 
     // Set up the output network
-    std::vector<armnnOnnxParser::BindingPointInfo> outputBindings;
+    std::vector<armnnTfLiteParser::BindingPointInfo> outputBindings;
     std::vector<armnn::TensorInfo>                   outputTensorInfos;
-    std::vector<std::string> outputTensorNames = armnnparser->getOutputTensorNames();
+    std::vector<std::string> outputTensorNames = armnnparser->GetSubgraphOutputTensorNames(subgraphId);
     for (unsigned int i = 0; i < outputTensorNames.size() ; i++)
     {
         std::cout << "outputTensorNames[" << i << "] = " << outputTensorNames[i] << std::endl;
@@ -350,7 +351,7 @@ int main(int argc, char* argv[])
         outputTensors.push_back({ outputBindings[i].first, armnn::Tensor(outputBindings[i].second, out[i].data()) });
     }
     
-    image_pre_process(input_file_str.c_str(), in[0].data());
+    image_pre_process(input_file_str.c_str(), inputTensorInfos[0], in[0].data());
 
     // Run the inferences
     std::cout << "\ninferences are running: " << std::flush;
@@ -362,26 +363,9 @@ int main(int argc, char* argv[])
     }
     std::cout << "\n";
 
-    std::vector<uint8_t> argmax(outputTensorInfos.at(0).GetNumElements()/21);
-    std::cout << "argmax buffer size: " << argmax.size() << "\n";
-    std::cout << "output buffer size: " << outputTensorInfos.at(0).GetNumElements() << "\n";
-
-    armnn_argmax(out[0].data(), argmax.data(), nH, nW, nClasses);
-    
     write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
-    write2buffer("ArgMAx", argmax.data(), argmax.size());
 
-    uint32_t segmentedPixels = 0;
-    for(uint32_t i = 0; i < argmax.size(); ++i)
-    {
-        if(argmax[i] > 0x05){
-            argmax[i] = 200;
-            segmentedPixels++;
-        }
-    }
-    float segmentedArea = static_cast<float>(segmentedPixels)/(nW*nH);
-    
-    image_post_process(input_file_str.c_str(), argmax.data());
+    image_post_process(input_file_str.c_str(), out[0].data());
 
     return 0;
 }

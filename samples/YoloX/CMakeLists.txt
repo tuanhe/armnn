@@ -15,7 +15,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED     ON)
 set(CMAKE_C_EXTENSIONS              OFF)
 set(CMAKE_CXX_EXTENSIONS            OFF)
 
-project (yolact)
+project (yolox)
 
 set(CMAKE_C_FLAGS_DEBUG         "-DDEBUG -O0 -g -fPIC")
 set(CMAKE_C_FLAGS_RELEASE       "-DNDEBUG -O3 -fPIC")
@@ -23,7 +23,7 @@ set(CMAKE_C_FLAGS_RELEASE       "-DNDEBUG -O3 -fPIC")
 set(CMAKE_CXX_FLAGS_DEBUG       "-DDEBUG -O0 -g -fPIC")
 set(CMAKE_CXX_FLAGS_RELEASE     "-DNDEBUG -O3 -fPIC")
 
-include(YoloXProject)
+include(ExternalProject)
 
 # Build in release mode by default
 if (NOT CMAKE_BUILD_TYPE STREQUAL Debug)
