@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUPreCompiledWorkload.hpp"
+#include "XpuPreCompiledWorkload.hpp"
 
-#include <xpu/XPUBackendUtils.hpp>
+#include <xpu/XpuBackendUtils.hpp>
 
 #include <armnn/Tensor.hpp>
 #include <armnn/Types.hpp>

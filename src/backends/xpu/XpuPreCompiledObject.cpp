@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUPreCompiledObject.hpp"
+#include "XpuPreCompiledObject.hpp"
 
 #include <armnn/Exceptions.hpp>
 

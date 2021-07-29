@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUBackend.hpp"
-#include "XPUWorkloadFactory.hpp"
-#include "XPULayerSupport.hpp"
-#include "XPUPreCompiledObject.hpp"
+#include "XpuBackend.hpp"
+#include "XpuWorkloadFactory.hpp"
+#include "XpuLayerSupport.hpp"
+#include "XpuPreCompiledObject.hpp"
 
 #include <backendsCommon/IBackendContext.hpp>
 #include <backendsCommon/IMemoryManager.hpp>
