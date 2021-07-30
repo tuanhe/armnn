@@ -7,9 +7,9 @@
 
 #include <backendsCommon/TensorHandle.hpp>
 
-#include <xpu/XPUWorkloadFactory.hpp>
-#include <xpu/workloads/XPUAdditionWorkload.hpp>
-#include <xpu/workloads/XPUPreCompiledWorkload.hpp>
+#include <xpu/XpuWorkloadFactory.hpp>
+#include <xpu/workloads/XpuAdditionWorkload.hpp>
+#include <xpu/workloads/XpuPreCompiledWorkload.hpp>
 
 #include <boost/cast.hpp>
 

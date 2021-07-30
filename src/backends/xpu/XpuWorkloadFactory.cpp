@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUWorkloadFactory.hpp"
+#include "XpuWorkloadFactory.hpp"
 
-#include "workloads/XPUAdditionWorkload.hpp"
-#include "workloads/XPUPreCompiledWorkload.hpp"
+#include "workloads/XpuAdditionWorkload.hpp"
+#include "workloads/XpuPreCompiledWorkload.hpp"
 
 #include <backendsCommon/TensorHandle.hpp>
 #include <backendsCommon/MemCopyWorkload.hpp>

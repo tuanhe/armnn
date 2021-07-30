@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUBackend.hpp"
+#include "XpuBackend.hpp"
 
 #include <armnn/BackendRegistry.hpp>
 

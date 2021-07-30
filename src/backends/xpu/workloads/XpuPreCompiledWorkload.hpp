@@ -8,7 +8,7 @@
 #include <backendsCommon/Workload.hpp>
 #include <backendsCommon/WorkloadData.hpp>
 
-#include <xpu/XPUPreCompiledObject.hpp>
+#include <xpu/XpuPreCompiledObject.hpp>
 
 #include <armnn/TypesUtils.hpp>
 

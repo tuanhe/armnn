@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPUBackendUtils.hpp"
+#include "XpuBackendUtils.hpp"
 
 using namespace armnn;
 

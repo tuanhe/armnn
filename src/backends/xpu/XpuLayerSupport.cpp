@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "XPULayerSupport.hpp"
+#include "XpuLayerSupport.hpp"
 
 #include <InternalTypes.hpp>
 #include <LayerSupportCommon.hpp>
