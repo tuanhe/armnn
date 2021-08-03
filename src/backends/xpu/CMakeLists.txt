@@ -17,3 +17,9 @@ add_subdirectory(workloads)
 if(BUILD_UNIT_TESTS)
     add_subdirectory(test)
 endif()
+
+if(COMPILER_IS_GNU_LIKE)
+    set_source_files_properties(${armnnXPUBackend_sources} PROPERTIES COMPILE_FLAGS
+    "-Wno-unused-variable -Wno-unused-parameter -Wno-conversion -Wno-sign-conversion \
+    -Wno-old-style-cast -Wno-ignored-qualifiers -Wno-error=deprecated-declarations -Wno-unused-function")
+endif()
