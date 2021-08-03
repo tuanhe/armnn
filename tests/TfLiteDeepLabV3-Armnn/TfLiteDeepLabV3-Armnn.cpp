@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <vector>
 
+#include <armnn/Utils.hpp>
 #include <armnn/BackendId.hpp>
 #include <armnn/BackendRegistry.hpp>
 #include <armnn/IRuntime.hpp>
@@ -235,6 +236,7 @@ static int image_post_process(const char* file, void* data)
 int main(int argc, char* argv[])
 {
     std::vector<double> inferenceTimes;
+    armnn::ConfigureLogging(true, true, armnn::LogSeverity::Info);
 
     // Get options
     process_args(argc, argv);
@@ -253,6 +255,8 @@ int main(int argc, char* argv[])
         throw armnn::Exception("Failed to create an ArmNN network");
     }
 
+    network->PrintGraph();
+
     // Optimize the network
     if (preferred_backends_order.size() == 0)
     {
@@ -261,6 +265,9 @@ int main(int argc, char* argv[])
     armnn::IOptimizedNetworkPtr optimizedNet = armnn::Optimize(*network,
                                                                preferred_backends_order,
                                                                runtime->GetDeviceSpec());
+    //network->PrintGraph();
+    optimizedNet->PrintGraph();
+    
     armnn::NetworkId networkId;
 
     // Load the network in to the runtime
@@ -285,6 +292,7 @@ int main(int argc, char* argv[])
         armnnTfLiteParser::BindingPointInfo inputBinding = armnnparser->GetNetworkInputBindingInfo(
                                                                            subgraphId,
                                                                            inputTensorNames[i]);
+        std::cout << "inputTensorNames[" << i << "] = " << inputBinding.first << std::endl;
         armnn::TensorInfo inputTensorInfo = runtime->GetInputTensorInfo(networkId, inputBinding.first);
         inputBindings.push_back(inputBinding);
         inputTensorInfos.push_back(inputTensorInfo);
