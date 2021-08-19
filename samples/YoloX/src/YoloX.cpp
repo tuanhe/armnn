@@ -45,8 +45,8 @@ std::string preferred_backend_str;
 std::string input_file_str;
 int nb_loops = 1;
 
-uint32_t nW = 416;
-uint32_t nH = 416;
+uint32_t INPUT_W = 416;
+uint32_t INPUT_H = 416;
 uint32_t nClasses = 3;
 
 static void print_help(char** argv)
@@ -126,26 +126,32 @@ static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, vo
     int nC = 3;
     #if CV
     std::cout << "Shape : " << tensorInfo.GetShape() << std::endl;
-    cv::Mat src = cv::imread(file);
+    cv::Mat img = cv::imread(file);
 
-    cv::Mat image;
-	cv::resize(src, image, cv::Size(nW, nH), 0, 0, cv::INTER_AREA);
-	int cnls = image.type();
-	if (cnls == CV_8UC1) {
-		cv::cvtColor(image, image, cv::COLOR_GRAY2RGB);
-	}
-	else if (cnls == CV_8UC3) {
-		cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
-	}
-	else if (cnls == CV_8UC4) {
-		cv::cvtColor(image, image, cv::COLOR_BGRA2RGB);
-	}
+    //cv::Mat pr_img = static_resize(image);
+    float r = std::min(INPUT_W / (img.cols * 1.0), INPUT_H / (img.rows * 1.0));
+    std::cout << "image cols = " << img.cols << std::endl;
+    std::cout << "image rows = " << img.rows << std::endl;
+    int unpad_w = r * img.cols;
+    int unpad_h = r * img.rows;
+    cv::Mat re(unpad_h, unpad_w, CV_8UC3);
+    cv::resize(img, re, re.size());
+    cv::Mat out(INPUT_W, INPUT_H, CV_8UC3, cv::Scalar(114, 114, 114));
+    re.copyTo(out(cv::Rect(0, 0, re.cols, re.rows)));
+    cv::imwrite("preprocess.jpg", out);
 
-    cv::Mat fimage;
-    image.convertTo(fimage, CV_32FC3, 1/128.0, -128.0 / 128.0);
-
-    // Copy image into input tensor
-    memcpy(data, fimage.data, sizeof(float) * nW * nW * nC);
+    int channels = 3;
+    int img_h = out.rows;
+    int img_w = out.cols;
+    float* buffer = reinterpret_cast<float*>(data);
+    for (size_t c = 0; c < channels; c++) {
+        for (size_t h = 0; h < img_h; h++) {
+            for (size_t w = 0; w < img_w; w++) {
+                buffer[c * img_w * img_h + h * img_w + w] =
+                (float)img.at<cv::Vec3b>(h, w)[c];
+            }
+        }
+    }
 
     #else
     armnn::IgnoreUnused(data);
@@ -154,18 +160,18 @@ static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, vo
 	// 加载图片获取宽、高、颜色通道信息
 	unsigned char *idata = stbi_load(file, &iw, &ih, &n, 0);
     printf("%d, %d, %d\n", iw, ih, n);
-    auto *odata = new unsigned char[nW * nH * n];
+    auto *odata = new unsigned char[INPUT_W * INPUT_H * n];
 
-    const int res = stbir_resize_uint8(idata, iw, ih, 0, reinterpret_cast<unsigned char *>(odata), nW, nH, 0, n);
+    const int res = stbir_resize_uint8(idata, iw, ih, 0, reinterpret_cast<unsigned char *>(odata), INPUT_W, INPUT_H, 0, n);
     if (res == 0)
     {
         throw armnn::Exception("The resizing operation failed");
     }
 
     std::string outputPath = "./output.jpg";
-    stbi_write_png(outputPath.c_str(), nW, nH, n, odata, 0);
+    stbi_write_png(outputPath.c_str(), INPUT_W, INPUT_H, n, odata, 0);
     
-    size_t size = static_cast<size_t>(nW*nH*n);
+    size_t size = static_cast<size_t>(INPUT_W*INPUT_H*n);
     memcpy(data, odata, size);
 
     stbi_image_free(idata);
@@ -177,7 +183,7 @@ static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, vo
 
 static int image_post_process(const char* file, void* data)
 {
-	cv::Mat mask = cv::Mat(nW, nH, CV_8UC1, data);
+	cv::Mat mask = cv::Mat(INPUT_W, INPUT_H, CV_8UC1, data);
     cv::imwrite("debug0.jpg", mask);
     cv::cvtColor(mask, mask, cv::COLOR_GRAY2RGB);
     cv::imwrite("debug1.jpg", mask);
@@ -270,7 +276,7 @@ int main(int argc, char* argv[])
         throw armnn::Exception("Failed to create an ArmNN network");
     }
 
-    network->PrintGraph();
+    //network->PrintGraph();
 
     // Optimize the network
     if (preferred_backends_order.size() == 0)
@@ -281,7 +287,7 @@ int main(int argc, char* argv[])
                                                                preferred_backends_order,
                                                                runtime->GetDeviceSpec());
     //network->PrintGraph();
-    optimizedNet->PrintGraph();
+    //optimizedNet->PrintGraph();
     
     armnn::NetworkId networkId;
 
@@ -357,7 +363,7 @@ int main(int argc, char* argv[])
     std::cout << "\ninferences are running: " << std::flush;
     for (int i = 0 ; i < nb_loops ; i++)
     {
-        runtime->EnqueueWorkload(networkId, inputTensors, outputTensors);
+        //runtime->EnqueueWorkload(networkId, inputTensors, outputTensors);
 
         std::cout << "# " << std::flush;
     }
