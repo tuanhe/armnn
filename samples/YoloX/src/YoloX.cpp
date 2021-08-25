@@ -361,7 +361,9 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
     {
         const Object& obj = objects[i];
 
-        fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+        //fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+        //        obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
+        fprintf(stderr, "%s = %.5f at %.2f %.2f %.2f x %.2f\n", class_names[obj.label], obj.prob,
                 obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
         cv::Scalar color = cv::Scalar(color_list[obj.label][0], color_list[obj.label][1], color_list[obj.label][2]);
