@@ -48,6 +48,8 @@ int nb_loops = 1;
 uint32_t INPUT_W = 416;
 uint32_t INPUT_H = 416;
 uint32_t nClasses = 3;
+float mean[3] = {0.485, 0.456, 0.406};
+float stdev[3] = {0.229, 0.224, 0.225};
 
 static void print_help(char** argv)
 {
@@ -121,63 +123,58 @@ void process_args(int argc, char** argv)
     }
 }
 
-static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, void* data)
+cv::Mat static_resize(const char* input_image_path)
 {
-    int nC = 3;
-    #if CV
-    std::cout << "Shape : " << tensorInfo.GetShape() << std::endl;
-    cv::Mat img = cv::imread(file);
-
-    //cv::Mat pr_img = static_resize(image);
-    float r = std::min(INPUT_W / (img.cols * 1.0), INPUT_H / (img.rows * 1.0));
-    std::cout << "image cols = " << img.cols << std::endl;
-    std::cout << "image rows = " << img.rows << std::endl;
-    int unpad_w = r * img.cols;
-    int unpad_h = r * img.rows;
+    cv::Mat image = cv::imread(input_image_path);
+    float r = std::min(INPUT_W / (image.cols * 1.0), INPUT_H / (image.rows * 1.0));
+    int unpad_w = r * image.cols;
+    int unpad_h = r * image.rows;
     cv::Mat re(unpad_h, unpad_w, CV_8UC3);
-    cv::resize(img, re, re.size());
+    cv::resize(image, re, re.size());
     cv::Mat out(INPUT_W, INPUT_H, CV_8UC3, cv::Scalar(114, 114, 114));
     re.copyTo(out(cv::Rect(0, 0, re.cols, re.rows)));
-    cv::imwrite("preprocess.jpg", out);
+    return out;
+}
 
-    int channels = 3;
-    int img_h = out.rows;
-    int img_w = out.cols;
+void yolox_normalize(cv::Mat& img, void* data)
+{
     float* buffer = reinterpret_cast<float*>(data);
-    for (size_t c = 0; c < channels; c++) {
-        for (size_t h = 0; h < img_h; h++) {
-            for (size_t w = 0; w < img_w; w++) {
-                buffer[c * img_w * img_h + h * img_w + w] =
-                (float)img.at<cv::Vec3b>(h, w)[c];
+	cvtColor(img, img, cv::COLOR_BGR2RGB);
+    int channels = 3;
+    int img_h = img.rows;
+    int img_w = img.cols;
+    for (size_t h = 0; h < img_h; h++) {
+        for (size_t w = 0; w < img_w; w++) {
+            for (size_t c = 0; c < channels; c++) {
+                int in_index = h * img_w * channels + w * channels + c;
+                float a = (float)(((float)img.at<cv::Vec3b>(h, w)[c]/255 - mean[c])/stdev[c]);
+                printf("%le \n",  a);
+                buffer[in_index] = a;
             }
         }
     }
+}
 
-    #else
-    armnn::IgnoreUnused(data);
-    int iw, ih, n;
+static int read_bin_file(const char* file, void* inputData, uint32_t inputDataSize)
+{
+    char * buffer;
+    long size;
+    std::ifstream in (file, std::ios::in| std::ios::binary |std::ios::ate);
+    size = in.tellg();
+    in.seekg (0, std::ios::beg);
+    buffer = new char [size];
+    in.read (buffer, size);
+    in.close();
+    memcpy(inputData, buffer, size);
+    delete[] buffer;
 
-	// 加载图片获取宽、高、颜色通道信息
-	unsigned char *idata = stbi_load(file, &iw, &ih, &n, 0);
-    printf("%d, %d, %d\n", iw, ih, n);
-    auto *odata = new unsigned char[INPUT_W * INPUT_H * n];
+    return 0;
+}
 
-    const int res = stbir_resize_uint8(idata, iw, ih, 0, reinterpret_cast<unsigned char *>(odata), INPUT_W, INPUT_H, 0, n);
-    if (res == 0)
-    {
-        throw armnn::Exception("The resizing operation failed");
-    }
-
-    std::string outputPath = "./output.jpg";
-    stbi_write_png(outputPath.c_str(), INPUT_W, INPUT_H, n, odata, 0);
-    
-    size_t size = static_cast<size_t>(INPUT_W*INPUT_H*n);
-    memcpy(data, odata, size);
-
-    stbi_image_free(idata);
-    stbi_image_free(odata);
-
-    #endif
+static int image_pre_process(const char* file, armnn::TensorInfo& tensorInfo, void* data)
+{
+    cv::Mat resized_img = static_resize(file);
+    yolox_normalize(resized_img, data);
     return 0;
 }
 
@@ -208,29 +205,6 @@ static int image_post_process(const char* file, void* data)
     
     cv::imwrite("seg.jpg", result);
 
-    return 0;
-}
-
-static int armnn_argmax(float* in, uint8_t* out, uint32_t h, uint32_t w, uint32_t c)
-{
-    const unsigned int outerElements = h*w;
-    const unsigned int innerElements = 1;
-    const unsigned int axisSize = c;
-
-    for (unsigned int outer = 0; outer < outerElements; ++outer) {
-        for (unsigned int inner = 0; inner < innerElements; ++inner) {
-            auto tmpValue = in[outer * axisSize * innerElements + inner];
-            unsigned int tmpIndex = 0;
-            for (unsigned int i = 1; i < axisSize; ++i) {
-                float value = in[(outer * axisSize * innerElements) + (i * innerElements) + inner];
-                if (value > tmpValue) {
-                    tmpValue = value;
-                    tmpIndex = i;
-                }
-            }
-            out[outer * innerElements + inner] = tmpIndex;
-        }
-    }
     return 0;
 }
 
@@ -358,12 +332,14 @@ int main(int argc, char* argv[])
     }
     
     image_pre_process(input_file_str.c_str(), inputTensorInfos[0], in[0].data());
+    //read_bin_file(input_file_str.c_str(), in[0].data(), inputTensorInfos[0].GetNumElements());
+    write2buffer("input", in[0].data(), inputTensorInfos.at(0).GetNumBytes());
 
     // Run the inferences
     std::cout << "\ninferences are running: " << std::flush;
     for (int i = 0 ; i < nb_loops ; i++)
     {
-        //runtime->EnqueueWorkload(networkId, inputTensors, outputTensors);
+        runtime->EnqueueWorkload(networkId, inputTensors, outputTensors);
 
         std::cout << "# " << std::flush;
     }
@@ -371,7 +347,13 @@ int main(int argc, char* argv[])
 
     write2buffer("CpuRef", out[0].data(), outputTensorInfos.at(0).GetNumBytes());
 
-    image_post_process(input_file_str.c_str(), out[0].data());
+    float* ptr = reinterpret_cast<float*>(out[0].data());
+    for(uint32_t i = 0 ; i <  outputTensorInfos.at(0).GetNumBytes()/4; i++)
+    {
+        printf("%e \n", ptr[i]);
+    }
+
+    //image_post_process(input_file_str.c_str(), out[0].data());
 
     return 0;
 }
