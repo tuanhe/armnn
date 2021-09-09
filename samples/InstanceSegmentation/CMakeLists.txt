@@ -56,8 +56,6 @@ include_directories(../common/include/CVUtils)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 file(GLOB SOURCES "src/*.cpp")
-#file(GLOB COMMON_SOURCES "../common/src/**/*.cpp")
-list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp)
 file(GLOB TEST_SOURCES "test/*.cpp")
 file(GLOB APP_MAIN "src/Yolact.cpp")
 

@@ -3479,20 +3479,20 @@ void SliceQueueDescriptor::Validate(const WorkloadInfo& workloadInfo) const
 
     // Check if the shape of the output tensor matches m_Size
     const TensorShape& outputShape = outputTensorInfo.GetShape();
-    for (unsigned int i = 0u; i < rank; ++i)
-    {
-        if (m_Parameters.m_Size[i] != outputShape[i])
-        {
-            throw InvalidArgumentException(descriptorName + ": Size descriptor does not match output tensor.");
-        }
-    }
+    //for (unsigned int i = 0u; i < rank; ++i)
+    //{
+    //    if (m_Parameters.m_Size[i] != outputShape[i])
+    //    {
+    //        throw InvalidArgumentException(descriptorName + ": Size descriptor does not match output tensor.");
+    //    }
+    //}
 
     // Check if the sum of begin offset and size in a given dimension
     // does not exceed the size of corresponding input
     const TensorShape& inputShape  = inputTensorInfo.GetShape();
     for(unsigned int i = 0u; i < rank; ++i)
     {
-        if (m_Parameters.m_Begin[i] + m_Parameters.m_Size[i] > inputShape[i])
+        if (m_Parameters.m_Begin[i] + outputShape[i] > inputShape[i])
         {
             throw InvalidArgumentException(descriptorName + ": Sum of begin offset and size for dimension " +
                 std::to_string(i) + " exceeds input size.");
