@@ -336,9 +336,9 @@ void nms_cpu(std::vector<Bbox> &bboxes, float threshold) {
     }
 }
 
-bool parse_yolov5_result(float* data, uint32_t loopsize, int32_t src_w, int32_t src_h, std::vector<Bbox>& bboxes)
+bool parse_yolov5_result(float* data, uint32_t num_boxes, int32_t src_w, int32_t src_h, std::vector<Bbox>& bboxes)
 {
-    for(uint32_t idx = 0; idx < loopsize; idx++)
+    for(uint32_t idx = 0; idx < num_boxes; idx++)
     {
         uint32_t index = idx * 85;
         float confidence = data[index + 4];
@@ -466,8 +466,8 @@ int image_post_process_one_tensor(const cv::Mat& img, armnn::OutputTensors& outp
         auto tensor = ot.second;
         //std::cout << "Shape [ " << tensor.GetShape() << " ] \n";
         float* buffer = reinterpret_cast<float*>(tensor.GetMemoryArea());
-        uint32_t total_size = tensor.GetShape()[1];
-        parse_yolov5_result(buffer, total_size,  INPUT_W, INPUT_H, bboxes);
+        uint32_t num_boxes = tensor.GetShape()[1];
+        parse_yolov5_result(buffer, num_boxes,  INPUT_W, INPUT_H, bboxes);
     }
 
     std::vector<Bbox> nms_bboxes;
